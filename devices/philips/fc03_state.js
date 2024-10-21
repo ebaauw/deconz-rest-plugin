@@ -37,45 +37,45 @@ if (attrid === 0x0002) {
           R.item('state/colormode').val = 'xy'
         }
       }
-      if ((mode & 0x00A0) !== 0 && len >= 2) {
-        const effect = ZclFrame.at(i + 1) << 8 | ZclFrame.at(i)
-        i += 2
-        len -= 2
+      if ((mode & 0x0020) !== 0 && len >= 1) {
+        const effect = ZclFrame.at(i)
+        i += 1
+        len -= 1
         switch (effect) {
-          case 0x8001:
+          case 0x01:
             R.item('state/effect').val = 'candle'
             break
-          case 0x8002:
+          case 0x02:
             R.item('state/effect').val = 'fire'
             break
-          case 0x8003:
+          case 0x03:
             R.item('state/effect').val = 'prism'
             break
-          case 0x8009:
+          case 0x09:
             R.item('state/effect').val = 'sunrise'
             break
-          case 0x800A:
+          case 0x0A:
             R.item('state/effect').val = 'sparkle'
             break
-          case 0x800B:
+          case 0x0B:
             R.item('state/effect').val = 'opal'
             break
-          case 0x800C:
+          case 0x0C:
             R.item('state/effect').val = 'glisten'
             break
-          case 0x800D:
+          case 0x0D:
             R.item('state/effect').val = 'sunset'
             break
-          case 0x800E:
+          case 0x0E:
             R.item('state/effect').val = 'underwater'
             break
-          case 0x800F:
+          case 0x0F:
             R.item('state/effect').val = 'cosmos'
             break
-          case 0x8010:
+          case 0x10:
             R.item('state/effect').val = 'sunbeam'
             break
-          case 0x8011:
+          case 0x11:
             R.item('state/effect').val = 'enchant'
             break
           default:
@@ -87,6 +87,13 @@ if (attrid === 0x0002) {
         if (R.item('state/effect').val !== 'colorloop') {
           R.item('state/effect').val = 'none'
         }
+      }
+      if ((mode & 0x0080) !== 0 && len >= 1) {
+        const speed = ZclFrame.at(i + 1)
+        i += 1
+        len -= 1
+        R.item('state/effect_speed').val = speed
+        // Or some clever way to convert to duration for sunrise/sunset
       }
       if ((mode & 0x0140) !== 0 && len >= 2) {
         const vLen = ZclFrame.at(i)
