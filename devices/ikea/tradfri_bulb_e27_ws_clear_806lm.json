@@ -1,10 +1,10 @@
 {
   "schema": "devcap1.schema.json",
-  "uuid": "6456154c-04be-493a-b321-0ee6bbc5a77d",
+  "uuid": "e4776ddf-be28-4f6e-8984-bad49a78d38b",
   "manufacturername": "$MF_IKEA",
-  "modelid": "TRADFRI bulb E14 WS 470lm",
+  "modelid": "TRADFRI bulb E27 WS clear 806lm",
   "vendor": "IKEA",
-  "product": "TRADFRI bulb E14 WS 470 lumen, dimmable white spectrum opal white (LED1835C6)",
+  "product": "Tradfri LED bulb E27 806 lumen, dimmable, white spectrum, clear (LED1736G9)",
   "sleeper": false,
   "status": "Gold",
   "subdevices": [
@@ -53,11 +53,11 @@
         },
         {
           "name": "cap/color/ct/max",
-          "static": 454
+          "default": "0xfeff"
         },
         {
           "name": "cap/color/ct/min",
-          "static": 250
+          "default": 0
         },
         {
           "name": "cap/on/off_with_effect",
