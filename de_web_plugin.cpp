@@ -215,7 +215,6 @@ static const SupportedDevice supportedDevices[] = {
     { VENDOR_JENNIC, "lumi.sensor_magnet", jennicMacPrefix },
     { VENDOR_JENNIC, "lumi.sensor_motion", jennicMacPrefix },
     { VENDOR_JENNIC, "lumi.sensor_switch.aq2", jennicMacPrefix }, // Xiaomi WXKG11LM 2016
-    { VENDOR_JENNIC, "lumi.remote.b1acn01", jennicMacPrefix },    // Xiaomi WXKG11LM 2018
     { VENDOR_JENNIC, "lumi.sensor_switch.aq3", jennicMacPrefix }, // Xiaomi WXKG12LM
     { VENDOR_JENNIC, "lumi.sensor_86sw1", jennicMacPrefix },      // Xiaomi single button wall switch WXKG03LM 2016
     { VENDOR_JENNIC, "lumi.remote.b186acn01", jennicMacPrefix },  // Xiaomi single button wall switch WXKG03LM 2018
@@ -5733,10 +5732,6 @@ void DeRestPluginPrivate::addSensorNode(const deCONZ::Node *node, const deCONZ::
                     {
                         fpSwitch.inClusters.push_back(ci->id());
                     }
-                    else if (modelId == QLatin1String("lumi.remote.b1acn01"))
-                    {
-                        fpSwitch.inClusters.push_back(ci->id());
-                    }
                     else if (manufacturer == QLatin1String("_TZ3000_bi6lpsew") ||
                              manufacturer == QLatin1String("_TZ3400_keyjhapk") ||
                              manufacturer == QLatin1String("_TYZB02_key8kk7r") ||
@@ -6067,7 +6062,7 @@ void DeRestPluginPrivate::addSensorNode(const deCONZ::Node *node, const deCONZ::
                     {
                         fpSwitch.inClusters.push_back(ci->id());
                     }
-                    else if (modelId == QLatin1String("lumi.sensor_switch.aq3") || modelId == QLatin1String("lumi.remote.b1acn01"))
+                    else if (modelId == QLatin1String("lumi.sensor_switch.aq3"))
                     {
                         fpSwitch.inClusters.push_back(ci->id());
                     }
@@ -16555,6 +16550,63 @@ const deCONZ::Node *DEV_GetCoreNode(uint64_t extAddress)
     }
 
     return nullptr;
+}
+
+/*! Returns a matching destination endpoint for an outgoing ZCL cluster command.
+ */
+uint8_t DEV_ResolveDestinationEndpoint(uint64_t extAddr, uint8_t hintEp, uint16_t cluster, uint8_t frameControl)
+{
+    uint8_t ep = 0;
+    uint8_t hint = hintEp;
+    const deCONZ::Node *node = DEV_GetCoreNode(extAddr);
+
+    if (hint == 255)
+        hint = 0;
+
+    if (node)
+    {
+        for (const deCONZ::SimpleDescriptor &sd: node->simpleDescriptors())
+        {
+            if (frameControl & deCONZ::ZclFCDirectionServerToClient)
+            {
+                for (const deCONZ::ZclCluster &cl : sd.outClusters())
+                {
+                    if (cl.id() == cluster)
+                    {
+                        if (sd.endpoint() == hint)
+                            return hint;
+
+                        if (ep == 0)
+                        {
+                            ep = sd.endpoint();
+                            if (hint == 0)
+                                return ep;
+                        }
+                    }
+                }
+            }
+            else
+            {
+                for (const deCONZ::ZclCluster &cl : sd.inClusters())
+                {
+                    if (cl.id() == cluster)
+                    {
+                        if (sd.endpoint() == hint)
+                            return hint;
+
+                        if (ep == 0)
+                        {
+                            ep = sd.endpoint();
+                            if (hint == 0)
+                                return ep;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return hintEp;
 }
 
 /* Returns number of APS requests currently in the queue. */
