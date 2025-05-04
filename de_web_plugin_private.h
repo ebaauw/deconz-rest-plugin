@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2021 dresden elektronik ingenieurtechnik gmbh.
+ * Copyright (c) 2017-2025 dresden elektronik ingenieurtechnik gmbh.
  * All rights reserved.
  *
  * The software in this package is published under the terms of the BSD
@@ -1035,7 +1035,7 @@ public:
     int removeAllGroups(const ApiRequest &req, ApiResponse &rsp);
     void handleLightEvent(const Event &e);
 
-    bool lightToMap(const ApiRequest &req, LightNode *webNode, QVariantMap &map, bool event = false);
+    bool lightToMap(const ApiRequest &req, LightNode *webNode, QVariantMap &map, const char *event = nullptr);
 
     // REST API groups
     int handleGroupsApi(const ApiRequest &req, ApiResponse &rsp);
@@ -1093,7 +1093,7 @@ public:
     int createSensor(const ApiRequest &req, ApiResponse &rsp);
     int getGroupIdentifiers(const ApiRequest &req, ApiResponse &rsp);
     int recoverSensor(const ApiRequest &req, ApiResponse &rsp);
-    bool sensorToMap(Sensor *sensor, QVariantMap &map, const ApiRequest &req, bool event = false);
+    bool sensorToMap(Sensor *sensor, QVariantMap &map, const ApiRequest &req, const char *event = nullptr);
     void handleSensorEvent(const Event &e);
 
     // REST API resourcelinks
@@ -1559,11 +1559,11 @@ public:
     QTimer *databaseTimer;
     QString emptyString;
 
-    // JSON support
+    // button_maps.json
     std::vector<ButtonMeta> buttonMeta;
     std::vector<ButtonMap> buttonMaps;
-    QMap<QString, quint16> btnMapClusters;
-    QMap<QString, QMap<QString, quint16>> btnMapClusterCommands;
+    std::vector<ButtonCluster> btnMapClusters;
+    std::vector<ButtonClusterCommand> btnMapClusterCommands;
     std::vector<ButtonProduct> buttonProductMap;
 
     // gateways

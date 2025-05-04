@@ -1,5 +1,6 @@
 {
   "schema": "devcap1.schema.json",
+  "uuid": "f0ca755e-0e06-433a-b104-b76b10dbcd6f",
   "manufacturername": [
     "NAMRON AS",
     "NAMRON AS"
@@ -12,7 +13,6 @@
   "product": "4in1-MultiSensor",
   "sleeper": true,
   "status": "Gold",
-  "path": "/devices/namron/4512770-4in1.json",
   "subdevices": [
     {
       "type": "$TYPE_PRESENCE_SENSOR",

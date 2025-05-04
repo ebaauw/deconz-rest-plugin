@@ -2658,7 +2658,7 @@ int DeRestPluginPrivate::getNewSensors(const ApiRequest &req, ApiResponse &rsp)
     \return true - on success
             false - on error
  */
-bool DeRestPluginPrivate::sensorToMap(Sensor *sensor, QVariantMap &map, const ApiRequest &re, bool event)
+bool DeRestPluginPrivate::sensorToMap(Sensor *sensor, QVariantMap &map, const ApiRequest &re, const char *event)
 {
     if (!sensor)
     {
@@ -2684,6 +2684,12 @@ bool DeRestPluginPrivate::sensorToMap(Sensor *sensor, QVariantMap &map, const Ap
                 continue;
             }
             const ResourceItemDescriptor &rid = item->descriptor();
+
+            // filter for same object parent: attr, state, config ..
+            if (event && (event[0] != rid.suffix[0] || event[1] != rid.suffix[1]))
+            {
+                continue;
+            }
 
             const ApiAttribute a = rid.toApi(map, event);
             QVariantMap *p = a.map;
@@ -2713,6 +2719,12 @@ bool DeRestPluginPrivate::sensorToMap(Sensor *sensor, QVariantMap &map, const Ap
             continue;
         }
         const ResourceItemDescriptor &rid = item->descriptor();
+
+        // filter for same object parent: attr, state, config ..
+        if (event && (event[0] != rid.suffix[0] || event[1] != rid.suffix[1]))
+        {
+            continue;
+        }
 
         if (rid.suffix == RConfigReachable && sensor->type().startsWith(QLatin1String("ZGP")))
         {
@@ -3018,12 +3030,29 @@ void DeRestPluginPrivate::handleSensorEvent(const Event &e)
         return; // already pushed
     }
 
+    if (e.what() == RAttrLastSeen)
+    {
+        QVariantMap map;
+        map[QLatin1String("t")] = QLatin1String("event");
+        map[QLatin1String("e")] = QLatin1String("changed");
+        map[QLatin1String("r")] = QLatin1String("sensors");
+        map[QLatin1String("id")] = e.id();
+        map[QLatin1String("uniqueid")] = sensor->uniqueId();
+        QVariantMap map1;
+        map1[QLatin1String("lastseen")] = item->toString();
+        map[QLatin1String("attr")] = map1;
+
+        item->clearNeedPush();
+        webSocketServer->broadcastTextMessage(Json::serialize(map));
+        return;
+    }
+
     QVariantMap smap;
     QHttpRequestHeader hdr;  // dummy
     QStringList path;  // dummy
     ApiRequest req(hdr, path, nullptr, QLatin1String("")); // dummy
     req.mode = ApiModeNormal;
-    sensorToMap(sensor, smap, req, true);
+    sensorToMap(sensor, smap, req, e.what());
 
     bool pushed = false;
     QVariantMap needPush = smap[QLatin1String("_push")].toMap();
@@ -3162,7 +3191,7 @@ void DeRestPluginPrivate::checkSensorStateTimerFired()
                     if (item && item->toNumber() == (S_BUTTON_1 + S_BUTTON_ACTION_INITIAL_PRESS))
                     {
                         item->setValue(S_BUTTON_1 + S_BUTTON_ACTION_HOLD);
-                        DBG_Printf(DBG_INFO, "[INFO] - Button %u Hold %s\n", item->toNumber(), qPrintable(sensor->modelId()));
+                        DBG_Printf(DBG_INFO, "[INFO] - Button %d Hold %s\n", (int)item->toNumber(), qPrintable(sensor->modelId()));
                         sensor->updateStateTimestamp();
                         sensor->setNeedSaveDatabase(true);
                         enqueueEvent(Event(RSensors, RStateButtonEvent, sensor->id(), item));
@@ -3181,7 +3210,7 @@ void DeRestPluginPrivate::checkSensorStateTimerFired()
                     {
                         btn &= ~0x03;
                         item->setValue(btn + S_BUTTON_ACTION_HOLD);
-                        DBG_Printf(DBG_INFO, "FoH switch button %d Hold %s\n", item->toNumber(), qPrintable(sensor->modelId()));
+                        DBG_Printf(DBG_INFO, "FoH switch button %d Hold %s\n", (int)item->toNumber(), qPrintable(sensor->modelId()));
                         sensor->updateStateTimestamp();
                         sensor->setNeedSaveDatabase(true);
                         enqueueEvent(Event(RSensors, RStateButtonEvent, sensor->id(), item));
@@ -3547,72 +3576,5 @@ void DeRestPluginPrivate::handleIndicationSearchSensors(const deCONZ::ApsDataInd
         sc2.macCapabilities = macCapabilities;
         searchSensorsCandidates.push_back(sc2);
         sc = &searchSensorsCandidates.back();
-    }
-
-    if (!sc) // we need a valid candidate from device announce or cache
-    {
-        return;
-    }
-
-    if (existDevicesWithVendorCodeForMacPrefix(sc->address, VENDOR_IKEA))
-    {
-        if (sc->macCapabilities & deCONZ::MacDeviceIsFFD) // end-devices only
-            return;
-
-        if (ind.profileId() != HA_PROFILE_ID)
-            return;
-
-        // filter for remote control toggle command (large button)
-        if (ind.srcEndpoint() == 0x01 && ind.clusterId() == SCENE_CLUSTER_ID  && zclFrame.manufacturerCode() == VENDOR_IKEA &&
-                 zclFrame.commandId() == 0x07 && zclFrame.payload().at(0) == 0x02)
-        {
-            // TODO move following legacy cleanup code in Phoscon App / switch editor
-            DBG_Printf(DBG_INFO, "ikea remote setup button\n");
-
-            Sensor *s = getSensorNodeForAddressAndEndpoint(ind.srcAddress(), ind.srcEndpoint());
-            if (!s)
-            {
-                return;
-            }
-
-            std::vector<Rule>::iterator ri = rules.begin();
-            std::vector<Rule>::iterator rend = rules.end();
-
-            QString sensorAddress(QLatin1String("/sensors/"));
-            sensorAddress.append(s->id());
-
-            bool changed = false;
-
-            for (; ri != rend; ++ri)
-            {
-                if (ri->state() != Rule::StateNormal)
-                {
-                    continue;
-                }
-
-                std::vector<RuleCondition>::const_iterator ci = ri->conditions().begin();
-                std::vector<RuleCondition>::const_iterator cend = ri->conditions().end();
-
-                for (; ci != cend; ++ci)
-                {
-                    if (ci->address().startsWith(sensorAddress))
-                    {
-                        if (ri->name().startsWith(QLatin1String("default-ct")) && ri->owner() == QLatin1String("deCONZ"))
-                        {
-                            DBG_Printf(DBG_INFO, "ikea remote delete legacy rule %s\n", qPrintable(ri->name()));
-                            ri->setState(Rule::StateDeleted);
-                            ri->setNeedSaveDatabase();
-                            changed = true;
-                        }
-                    }
-                }
-            }
-
-            if (changed)
-            {
-                needRuleCheck = RULE_CHECK_DELAY;
-                queSaveDb(DB_RULES, DB_SHORT_SAVE_DELAY);
-            }
-        }
     }
 }
