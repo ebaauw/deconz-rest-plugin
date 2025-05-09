@@ -2658,7 +2658,7 @@ int DeRestPluginPrivate::getNewSensors(const ApiRequest &req, ApiResponse &rsp)
     \return true - on success
             false - on error
  */
-bool DeRestPluginPrivate::sensorToMap(Sensor *sensor, QVariantMap &map, const ApiRequest &re, bool event)
+bool DeRestPluginPrivate::sensorToMap(Sensor *sensor, QVariantMap &map, const ApiRequest &re, const char *event)
 {
     if (!sensor)
     {
@@ -2683,11 +2683,29 @@ bool DeRestPluginPrivate::sensorToMap(Sensor *sensor, QVariantMap &map, const Ap
             {
                 continue;
             }
+
+            if (!item->lastSet().isValid())
+            {
+                continue;
+            }
+
             const ResourceItemDescriptor &rid = item->descriptor();
+
+            // filter for same object parent: attr, state, config ..
+            if (event && (event[0] != rid.suffix[0] || event[1] != rid.suffix[1]))
+            {
+                continue;
+            }
+
+            // following are only exposed on /devices
+            if (rid.suffix == RAttrDdfHash || rid.suffix == RAttrDdfPolicy)
+            {
+                continue;
+            }
 
             const ApiAttribute a = rid.toApi(map, event);
             QVariantMap *p = a.map;
-            (*p)[a.key] = item->toVariant();
+            (*p)[a.key] = R_ItemToRestApiVariant(item);
 
             if (event && item->needPushChange())
             {
@@ -2714,6 +2732,12 @@ bool DeRestPluginPrivate::sensorToMap(Sensor *sensor, QVariantMap &map, const Ap
         }
         const ResourceItemDescriptor &rid = item->descriptor();
 
+        // filter for same object parent: attr, state, config ..
+        if (event && (event[0] != rid.suffix[0] || event[1] != rid.suffix[1]))
+        {
+            continue;
+        }
+
         if (rid.suffix == RConfigReachable && sensor->type().startsWith(QLatin1String("ZGP")))
         {
             continue; // don't provide reachable for green power devices
@@ -2734,6 +2758,16 @@ bool DeRestPluginPrivate::sensorToMap(Sensor *sensor, QVariantMap &map, const Ap
             if (!(all || item->needPushChange()))
             {
                 continue;
+            }
+
+            // quirk to ensure attr/lastseen and attr/lastannounced aren't null
+            if (rid.suffix == RAttrLastAnnounced || rid.suffix == RAttrLastSeen)
+            {
+                if (device && item->toNumber() <= 0 && 0 < device->creationTime())
+                {
+                    item->setValue(device->creationTime(), ResourceItem::SourceDevice);
+                    sensor->setNeedSaveDatabase(true);
+                }
             }
 
             const ApiAttribute a = rid.toApi(map, event);
@@ -2837,6 +2871,11 @@ bool DeRestPluginPrivate::sensorToMap(Sensor *sensor, QVariantMap &map, const Ap
     if (sensor->fingerPrint().endpoint != INVALID_ENDPOINT)
     {
         map[QLatin1String("ep")] = sensor->fingerPrint().endpoint;
+    }
+
+    if (sensor->etag.size() == 0)
+    {
+        updateSensorEtag(sensor);
     }
 
     QString etag = sensor->etag;
@@ -3018,12 +3057,29 @@ void DeRestPluginPrivate::handleSensorEvent(const Event &e)
         return; // already pushed
     }
 
+    if (e.what() == RAttrLastSeen)
+    {
+        QVariantMap map;
+        map[QLatin1String("t")] = QLatin1String("event");
+        map[QLatin1String("e")] = QLatin1String("changed");
+        map[QLatin1String("r")] = QLatin1String("sensors");
+        map[QLatin1String("id")] = e.id();
+        map[QLatin1String("uniqueid")] = sensor->uniqueId();
+        QVariantMap map1;
+        map1[QLatin1String("lastseen")] = item->toString();
+        map[QLatin1String("attr")] = map1;
+
+        item->clearNeedPush();
+        webSocketServer->broadcastTextMessage(Json::serialize(map));
+        return;
+    }
+
     QVariantMap smap;
     QHttpRequestHeader hdr;  // dummy
     QStringList path;  // dummy
     ApiRequest req(hdr, path, nullptr, QLatin1String("")); // dummy
     req.mode = ApiModeNormal;
-    sensorToMap(sensor, smap, req, true);
+    sensorToMap(sensor, smap, req, e.what());
 
     bool pushed = false;
     QVariantMap needPush = smap[QLatin1String("_push")].toMap();

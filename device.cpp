@@ -62,6 +62,7 @@ void DEV_PollIdleStateHandler(Device *device, const Event &event);
 void DEV_PollNextStateHandler(Device *device, const Event &event);
 void DEV_PollBusyStateHandler(Device *device, const Event &event);
 void DEV_DeadStateHandler(Device *device, const Event &event);
+void DEV_ZgpStateHandler(Device *device, const Event &event);
 
 // enable domain specific string literals
 using namespace deCONZ::literals;
@@ -139,6 +140,7 @@ public:
     std::vector<Resource*> subResources;
     const deCONZ::Node *node = nullptr; //! a reference to the deCONZ core node
     int deviceId = DEV_INVALID_DEVICE_ID;
+    int64_t creationTime = -1; //! time when the device was created in database
     DeviceKey deviceKey = 0; //! for physical devices this is the MAC address
 
     /*! The currently active state handler function(s).
@@ -290,7 +292,7 @@ void DEV_InitStateHandler(Device *device, const Event &event)
 
             if ((device->key() & 0xffffffff00000000LLU) == 0)
             {
-                d->setState(DEV_DeadStateHandler);
+                d->setState(DEV_ZgpStateHandler);
                 return; // ignore ZGP for now
             }
         }
@@ -838,7 +840,9 @@ void DEV_GetDeviceDescriptionHandler(Device *device, const Event &event)
         // if there is a IAS Zone Cluster add the RAttrZoneType
         if (DEV_GetSimpleDescriptorForServerCluster(device, 0x0500_clid))
         {
-            device->addItem(DataTypeUInt16, RAttrZoneType);
+            ResourceItem *item = device->addItem(DataTypeUInt16, RAttrZoneType);
+            if (item)
+                item->setIsPublic(false);
         }
         DEV_EnqueueEvent(device, REventDDFInitRequest);
     }
@@ -2144,6 +2148,34 @@ void DEV_DeadStateHandler(Device *device, const Event &event)
 
             if (event.what() == REventPoll || event.what() == REventAwake)
             {
+                if (device->node())
+                {
+                    // update address info, a bit convoluted
+                    const deCONZ::Address &a = device->node()->address();
+                    if (a.hasExt())
+                    {
+                        ResourceItem *ext = device->item(RAttrExtAddress);
+                        if (!ext->lastSet().isValid() || ext->toNumber() != a.ext())
+                        {
+                            ext->setValue(a.ext());
+                        }
+                    }
+                    ResourceItem *nwk = device->item(RAttrNwkAddress);
+
+                    if (a.hasNwk())
+                    {
+                        nwk->setIsPublic(true);
+                        if (!nwk->lastSet().isValid() || nwk->toNumber() != a.nwk())
+                        {
+                            nwk->setValue(a.nwk());
+                        }
+                    }
+                    else if (!nwk->lastSet().isValid())
+                    {
+                        nwk->setIsPublic(false); // prevent null invalid address being exposed
+                    }
+                }
+
                 extern void DEV_PollLegacy(Device *device); // defined in de_web_plugin.cpp
 
                 if (d->node && d->node->isCoordinator())
@@ -2154,6 +2186,26 @@ void DEV_DeadStateHandler(Device *device, const Event &event)
                 DEV_PollLegacy(device);
             }
         }
+    }
+}
+
+void DEV_ZgpStateHandler(Device *device, const Event &event)
+{
+    if (event.what() == REventStateEnter)
+    {
+        DBG_Printf(DBG_DEV, "DEV enter ZGP passive state " FMT_MAC "\n", FMT_MAC_CAST(event.deviceKey()));
+        ResourceItem *item;
+        item = device->item(RAttrNwkAddress);
+        if (item) // only hide in API for now
+            item->setIsPublic(false);
+
+        item = device->item(RCapSleeper);
+        if (item)
+            item->setValue(true);
+    }
+    else if (event.what() == REventStateLeave)
+    {
+
     }
 }
 
@@ -2210,6 +2262,19 @@ void Device::setDeviceId(int id)
     }
 }
 
+void Device::setCreationTime(int64_t creationTime)
+{
+    if (0 < creationTime)
+    {
+        d->creationTime = creationTime;
+    }
+}
+
+int64_t Device::creationTime() const
+{
+    return d->creationTime;
+}
+
 int Device::deviceId() const
 {
     return d->deviceId;
@@ -2249,7 +2314,6 @@ void Device::addSubDevice(Resource *sub)
             return;
         }
     }
-
 
     Q_ASSERT(0); // too many sub resources, todo raise limit
 }

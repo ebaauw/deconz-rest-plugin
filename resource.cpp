@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2024 dresden elektronik ingenieurtechnik gmbh.
+ * Copyright (c) 2017-2025 dresden elektronik ingenieurtechnik gmbh.
  * All rights reserved.
  *
  * The software in this package is published under the terms of the BSD
@@ -12,6 +12,7 @@
 
 #include <deconz/u_assert.h>
 #include <deconz/dbg_trace.h>
+#include <deconz/u_time.h>
 #include <utils/stringcache.h>
 #include "resource.h"
 
@@ -1278,20 +1279,34 @@ bool ResourceItem::setValue(const QVariant &val, ValueSource source)
         if (val.type() == QVariant::String)
         {
             const auto str = val.toString();
-            auto fmt = str.contains('.') ? QLatin1String("yyyy-MM-ddTHH:mm:ss.zzz")
-                                         : QLatin1String("yyyy-MM-ddTHH:mm:ss");
-            auto dt = QDateTime::fromString(str, fmt);
-            dt.setTimeSpec(Qt::UTC);
+            if (str.isEmpty())
+            {
+                m_valueSource = SourceUnknown;
+                return false;
+            }
 
-            if (dt.isValid())
+            // historically some items are UTC but stored without Z in database
+            QByteArray tt = str.toLatin1();
+            if (!tt.endsWith('Z') && (
+                    rid->suffix == RStateLastUpdated
+                    || rid->suffix == RStateLastCheckin
+                    || rid->suffix == RStateSunrise
+                    || rid->suffix == RStateSunset))
+            {
+                tt.append('Z');
+            }
+
+            int64_t ms = U_TimeFromISO8601(tt.constData(), tt.size());
+
+            if (0 < ms)
             {
                 m_lastSet = now;
                 m_numPrev = m_num;
                 m_flags |= FlagNeedPushSet;
 
-                if (m_num != dt.toMSecsSinceEpoch())
+                if (m_num != ms)
                 {
-                    m_num = dt.toMSecsSinceEpoch();
+                    m_num = ms;
                     m_lastChanged = m_lastSet;
                     m_flags |= FlagNeedPushChange;
                     m_flags |= FlagNeedStore;
@@ -1463,12 +1478,16 @@ void ResourceItem::setTimeStamps(const QDateTime &t)
 
 QVariant ResourceItem::toVariant() const
 {
+    const ResourceItemDescriptor *rid = &descriptor();
+
     if (!m_lastSet.isValid())
     {
+        if (rid->type == DataTypeString || rid->type == DataTypeTimePattern)
+        {
+            return QString(""); // otherwise the API would return null for strings
+        }
         return QVariant();
     }
-
-    const ResourceItemDescriptor *rid = &descriptor();
 
     if (rid->type == DataTypeString ||
         rid->type == DataTypeTimePattern)
@@ -1880,6 +1899,36 @@ void Resource::cleanupStateChanges()
     }
 }
 
+/*! Removes all StateChange items related to \p suffix.
+ */
+void Resource::removeStateChangesForItem(const char *suffix)
+{
+    bool again = true;
+    while (again)
+    {
+        again = false;
+        auto it = m_stateChanges.cbegin();
+        auto end = m_stateChanges.cend();
+
+        for (; it != end; ++it)
+        {
+            auto it2 = it->items().cbegin();
+            const auto end2 = it->items().cend();
+            for (;it2 != end2; ++it2)
+            {
+                if (it2->suffix == suffix)
+                    break;
+            }
+
+            if (it2 != end2) // found matching item, remove SC and look again
+            {
+                again = true;
+                m_stateChanges.erase(it);
+            }
+        }
+    }
+}
+
 /*! Returns the string presentation of an data type */
 QLatin1String R_DataTypeToString(ApiDataType type)
 {
@@ -1926,4 +1975,19 @@ bool isValidRConfigGroup(const QString &str)
     }
 
     return result == groupList.size();
+}
+
+/*! Helper function to expose \p resource item as a different type through REST API than internally defined. */
+QVariant R_ItemToRestApiVariant(const ResourceItem *item)
+{
+    if (item)
+    {
+        const ResourceItemDescriptor &rid = item->descriptor();
+        if (rid.suffix == RAttrNwkAddress)
+        {
+            return QString("0x") + QString("%1").arg(item->toNumber(), 4, 16, QLatin1Char('0')).toUpper();
+        }
+        return item->toVariant();
+    }
+    return {};
 }

@@ -1776,6 +1776,12 @@ void DeRestPluginPrivate::gpProcessButtonEvent(const deCONZ::GpDataIndication &i
     Event e(RSensors, RStateButtonEvent, sensor->id(), item);
     enqueueEvent(e);
     enqueueEvent(Event(RSensors, RStateLastUpdated, sensor->id()));
+
+    ResourceItem *itemLastSeen = sensor->item(RAttrLastSeen);
+    if (itemLastSeen) // sensor->rx() could throttle, ensure lastseen is refreshed
+    {
+        itemLastSeen->setValue(item->lastSet());
+    }
 }
 
 /*! Returns the number of tasks for a specific address.
@@ -2009,6 +2015,7 @@ void DeRestPluginPrivate::gpDataIndication(const deCONZ::GpDataIndication &ind)
 
             // create new sensor
             Sensor sensorNode;
+            sensorNode.removeItem(RAttrLastAnnounced);
             sensorNode.setType("ZGPSwitch");
 
             // https://github.com/dresden-elektronik/deconz-rest-plugin/pull/3285
@@ -2107,6 +2114,12 @@ void DeRestPluginPrivate::gpDataIndication(const deCONZ::GpDataIndication &ind)
             sensors.push_back(sensorNode);
 
             sensor = &sensors.back();
+
+            Device *device = DEV_GetOrCreateDevice(this, deCONZ::ApsController::instance(), eventEmitter, m_devices, ind.gpdSrcId());
+            if (device)
+            {
+                device->addSubDevice(sensor);
+            }
 
             Event e(RSensors, REventAdded, sensorNode.id());
             enqueueEvent(e);
@@ -11780,21 +11793,39 @@ void DeRestPluginPrivate::nodeEvent(const deCONZ::NodeEvent &event)
 
     case deCONZ::NodeEvent::NodeAdded:
     {
+        if (!event.node())
+        {
+            return;
+        }
+
         int deviceId = -1;
+        int64_t creationTime = -1;
         QTime now = QTime::currentTime();
         if (queryTime.secsTo(now) < 20)
         {
             queryTime = now.addSecs(20);
         }
-        if (event.node())
+
         {
-            deviceId = DB_StoreDevice(event.node()->address());
+            DB_Device dev;
+            deCONZ::Address addr = event.node()->address();
+            if (addr.hasExt() && addr.hasNwk())
+            {
+                dev.mac = event.node()->address().ext();
+                dev.nwk = event.node()->address().nwk();
+                if (DB_StoreDevice(dev))
+                {
+                    deviceId = dev.deviceId;
+                    creationTime = dev.creationTime;
+                }
+            }
         }
 
         auto *device = DEV_GetOrCreateDevice(this, deCONZ::ApsController::instance(), eventEmitter, m_devices, event.node()->address().ext());
         if (device)
         {
             device->setDeviceId(deviceId);
+            device->setCreationTime(creationTime);
             if (DEV_InitDeviceBasic(device))
             {
                 enqueueEvent(Event(device->prefix(), REventPoll, 0, device->key()));
@@ -11824,7 +11855,14 @@ void DeRestPluginPrivate::nodeEvent(const deCONZ::NodeEvent &event)
     {
         if (event.node())
         {
-            DB_StoreDevice(event.node()->address());
+            deCONZ::Address addr = event.node()->address();
+            if (addr.hasExt() && addr.hasNwk())
+            {
+                DB_Device dev;
+                dev.mac = addr.ext();
+                dev.nwk = addr.nwk();
+                DB_StoreDevice(dev);
+            }
         }
         break;
     }
