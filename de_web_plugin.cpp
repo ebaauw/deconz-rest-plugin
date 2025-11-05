@@ -15,7 +15,9 @@
 #include <QtCore/qmath.h>
 #include <QNetworkAccessManager>
 #include <QPushButton>
-#include <QTextCodec>
+#if QT_VERSION_MAJOR < 6
+  #include <QTextCodec>
+#endif
 #include <QTime>
 #include <QTimer>
 #include <QTcpSocket>
@@ -861,7 +863,12 @@ DeRestPluginPrivate::DeRestPluginPrivate(QObject *parent) :
             this, SLOT(openClientTimerFired()));
     openClientTimer->start(1000);
 
-    quint16 wsPort = deCONZ::appArgumentNumeric(QLatin1String("--ws-port"), gwConfig["websocketport"].toUInt());
+    uint16_t wsPort = deCONZ::appArgumentNumeric(QLatin1String("--ws-port"), 0);
+    if (wsPort == apsCtrl->getParameter(deCONZ::ParamHttpPort) || wsPort == apsCtrl->getParameter(deCONZ::ParamHttpsPort))
+    {
+        wsPort = 0; // already listening on this port
+    }
+
     webSocketServer = new WebSocketServer(this, wsPort);
     gwConfig["websocketport"] = webSocketServer->port();
 
@@ -964,6 +971,7 @@ void DeRestPluginPrivate::apsdeDataIndicationDevice(const deCONZ::ApsDataIndicat
         if (!item->toBool())
         {
             item->setValue(true);
+            item->setNeedStore();
             enqueueEvent(Event(device->prefix(), item->descriptor().suffix, 0, device->key()));
         }
     }
@@ -1776,6 +1784,12 @@ void DeRestPluginPrivate::gpProcessButtonEvent(const deCONZ::GpDataIndication &i
     Event e(RSensors, RStateButtonEvent, sensor->id(), item);
     enqueueEvent(e);
     enqueueEvent(Event(RSensors, RStateLastUpdated, sensor->id()));
+
+    ResourceItem *itemLastSeen = sensor->item(RAttrLastSeen);
+    if (itemLastSeen) // sensor->rx() could throttle, ensure lastseen is refreshed
+    {
+        itemLastSeen->setValue(item->lastSet());
+    }
 }
 
 /*! Returns the number of tasks for a specific address.
@@ -2009,6 +2023,7 @@ void DeRestPluginPrivate::gpDataIndication(const deCONZ::GpDataIndication &ind)
 
             // create new sensor
             Sensor sensorNode;
+            sensorNode.removeItem(RAttrLastAnnounced);
             sensorNode.setType("ZGPSwitch");
 
             // https://github.com/dresden-elektronik/deconz-rest-plugin/pull/3285
@@ -2107,6 +2122,12 @@ void DeRestPluginPrivate::gpDataIndication(const deCONZ::GpDataIndication &ind)
             sensors.push_back(sensorNode);
 
             sensor = &sensors.back();
+
+            Device *device = DEV_GetOrCreateDevice(this, deCONZ::ApsController::instance(), eventEmitter, m_devices, ind.gpdSrcId());
+            if (device)
+            {
+                device->addSubDevice(sensor);
+            }
 
             Event e(RSensors, REventAdded, sensorNode.id());
             enqueueEvent(e);
@@ -11780,21 +11801,39 @@ void DeRestPluginPrivate::nodeEvent(const deCONZ::NodeEvent &event)
 
     case deCONZ::NodeEvent::NodeAdded:
     {
+        if (!event.node())
+        {
+            return;
+        }
+
         int deviceId = -1;
+        int64_t creationTime = -1;
         QTime now = QTime::currentTime();
         if (queryTime.secsTo(now) < 20)
         {
             queryTime = now.addSecs(20);
         }
-        if (event.node())
+
         {
-            deviceId = DB_StoreDevice(event.node()->address());
+            DB_Device dev;
+            deCONZ::Address addr = event.node()->address();
+            if (addr.hasExt() && addr.hasNwk())
+            {
+                dev.mac = event.node()->address().ext();
+                dev.nwk = event.node()->address().nwk();
+                if (DB_StoreDevice(dev))
+                {
+                    deviceId = dev.deviceId;
+                    creationTime = dev.creationTime;
+                }
+            }
         }
 
         auto *device = DEV_GetOrCreateDevice(this, deCONZ::ApsController::instance(), eventEmitter, m_devices, event.node()->address().ext());
         if (device)
         {
             device->setDeviceId(deviceId);
+            device->setCreationTime(creationTime);
             if (DEV_InitDeviceBasic(device))
             {
                 enqueueEvent(Event(device->prefix(), REventPoll, 0, device->key()));
@@ -11824,7 +11863,14 @@ void DeRestPluginPrivate::nodeEvent(const deCONZ::NodeEvent &event)
     {
         if (event.node())
         {
-            DB_StoreDevice(event.node()->address());
+            deCONZ::Address addr = event.node()->address();
+            if (addr.hasExt() && addr.hasNwk())
+            {
+                DB_Device dev;
+                dev.mac = addr.ext();
+                dev.nwk = addr.nwk();
+                DB_StoreDevice(dev);
+            }
         }
         break;
     }
@@ -15643,6 +15689,10 @@ bool DeRestPlugin::isHttpTarget(const QHttpRequestHeader &hdr)
             return true;
         }
     }
+    else if (hdr.hasKey(QLatin1String("Upgrade")) && hdr.value(QLatin1String("Upgrade")) == QLatin1String("websocket"))
+    {
+        return true;
+    }
 
     return false;
 }
@@ -15655,13 +15705,24 @@ bool DeRestPlugin::isHttpTarget(const QHttpRequestHeader &hdr)
  */
 int DeRestPlugin::handleHttpRequest(const QHttpRequestHeader &hdr, QTcpSocket *sock)
 {
+    if (hdr.hasKey(QLatin1String("Upgrade")) && hdr.value(QLatin1String("Upgrade")) == QLatin1String("websocket"))
+    {
+        d->webSocketServer->handleExternalTcpSocket(hdr, sock);
+        return 0;
+    }
+
     QString content;
     QTextStream stream(sock);
 
     ScratchMemRewind(0);
     ScratchMemWaypoint swp;
 
+#if QT_VERSION_MAJOR < 6
     stream.setCodec(QTextCodec::codecForName("UTF-8"));
+#else
+    stream.setEncoding(QStringConverter::Utf8);
+#endif
+
     d->pushClientForClose(sock, 60);
 
     if (DBG_IsEnabled(DBG_HTTP))
@@ -16196,6 +16257,15 @@ Resource *DEV_GetResource(const char *resource, const QString &identifier)
         return plugin->getResource(resource, identifier);
     }
 
+    return nullptr;
+}
+
+DeviceContainer* DEV_GetDevices()
+{
+    if (plugin)
+    {
+        return &plugin->m_devices;
+    }
     return nullptr;
 }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2023 dresden elektronik ingenieurtechnik gmbh.
+ * Copyright (c) 2013-2025 dresden elektronik ingenieurtechnik gmbh.
  * All rights reserved.
  *
  * The software in this package is published under the terms of the BSD
@@ -9,7 +9,6 @@
  */
 
 #include <QString>
-#include <QTextCodec>
 #include <QTcpSocket>
 #include <QUrlQuery>
 #include <QVariantMap>
@@ -252,6 +251,11 @@ bool DeRestPluginPrivate::lightToMap(const ApiRequest &req, LightNode *lightNode
                 continue;
             }
 
+            if (!item->lastSet().isValid())
+            {
+                continue;
+            }
+
             const ResourceItemDescriptor &rid = item->descriptor();
 
             // filter for same object parent: attr, state, config ..
@@ -260,9 +264,15 @@ bool DeRestPluginPrivate::lightToMap(const ApiRequest &req, LightNode *lightNode
                 continue;
             }
 
+            // following are only exposed on /devices
+            if (rid.suffix == RAttrDdfHash || rid.suffix == RAttrDdfPolicy)
+            {
+                continue;
+            }
+
             const ApiAttribute a = rid.toApi(map, event);
             QVariantMap *p = a.map;
-            (*p)[a.key] = item->toVariant();
+            (*p)[a.key] = R_ItemToRestApiVariant(item);
 
             if (event && item->needPushChange())
             {
@@ -320,6 +330,16 @@ bool DeRestPluginPrivate::lightToMap(const ApiRequest &req, LightNode *lightNode
             if (!(all || item->needPushChange()))
             {
                 continue;
+            }
+
+            // quirk to ensure attr/lastseen and attr/lastannounced aren't null
+            if (rid.suffix == RAttrLastAnnounced || rid.suffix == RAttrLastSeen)
+            {
+                if (device && item->toNumber() <= 0 && 0 < device->creationTime())
+                {
+                    item->setValue(device->creationTime(), ResourceItem::SourceDevice);
+                    lightNode->setNeedSaveDatabase(true);
+                }
             }
 
             const ApiAttribute a = rid.toApi(map, event);
@@ -581,6 +601,11 @@ bool DeRestPluginPrivate::lightToMap(const ApiRequest &req, LightNode *lightNode
     if (req.mode != ApiModeEcho && req.apiVersion() < ApiVersion_3_DDEL)
     {
         map[QLatin1String("hascolor")] = lightNode->hasColor();
+    }
+
+    if (lightNode->etag.size() == 0)
+    {
+        updateLightEtag(lightNode);
     }
 
     QString etag = lightNode->etag;
@@ -3803,6 +3828,9 @@ int DeRestPluginPrivate::deleteLight(const ApiRequest &req, ApiResponse &rsp)
     {
         lightNode->setState(LightNode::StateDeleted);
         lightNode->setNeedSaveDatabase(true);
+
+        Event e(RLights, REventDeleted, lightNode->id());
+        enqueueEvent(e);
     }
 
     {
