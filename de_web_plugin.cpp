@@ -863,7 +863,12 @@ DeRestPluginPrivate::DeRestPluginPrivate(QObject *parent) :
             this, SLOT(openClientTimerFired()));
     openClientTimer->start(1000);
 
-    quint16 wsPort = deCONZ::appArgumentNumeric(QLatin1String("--ws-port"), gwConfig["websocketport"].toUInt());
+    uint16_t wsPort = deCONZ::appArgumentNumeric(QLatin1String("--ws-port"), 0);
+    if (wsPort == apsCtrl->getParameter(deCONZ::ParamHttpPort) || wsPort == apsCtrl->getParameter(deCONZ::ParamHttpsPort))
+    {
+        wsPort = 0; // already listening on this port
+    }
+
     webSocketServer = new WebSocketServer(this, wsPort);
     gwConfig["websocketport"] = webSocketServer->port();
 
@@ -15684,6 +15689,10 @@ bool DeRestPlugin::isHttpTarget(const QHttpRequestHeader &hdr)
             return true;
         }
     }
+    else if (hdr.hasKey(QLatin1String("Upgrade")) && hdr.value(QLatin1String("Upgrade")) == QLatin1String("websocket"))
+    {
+        return true;
+    }
 
     return false;
 }
@@ -15696,6 +15705,12 @@ bool DeRestPlugin::isHttpTarget(const QHttpRequestHeader &hdr)
  */
 int DeRestPlugin::handleHttpRequest(const QHttpRequestHeader &hdr, QTcpSocket *sock)
 {
+    if (hdr.hasKey(QLatin1String("Upgrade")) && hdr.value(QLatin1String("Upgrade")) == QLatin1String("websocket"))
+    {
+        d->webSocketServer->handleExternalTcpSocket(hdr, sock);
+        return 0;
+    }
+
     QString content;
     QTextStream stream(sock);
 
