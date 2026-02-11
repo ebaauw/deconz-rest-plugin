@@ -1,15 +1,15 @@
 {
   "schema": "devcap1.schema.json",
-  "uuid": "240fb1b8-8965-4549-a7eb-df13c38678e1",
-  "manufacturername": "Third Reality, Inc",
-  "modelid": "3RSMR01067Z",
-  "vendor": "Third Reality",
-  "product": "Motion Sensor R1 (3RSMR01067Z)",
+  "uuid": "33d78af8-da01-4e00-af65-9bcbfd6ce0cf",
+  "manufacturername": "_TZ3000_imdfhhud",
+  "modelid": "TS0207",
+  "vendor": "Tuya",
+  "product": "Rain sensor (TS0207)",
   "sleeper": true,
   "status": "Gold",
   "subdevices": [
     {
-      "type": "$TYPE_PRESENCE_SENSOR",
+      "type": "$TYPE_WATER_LEAK_SENSOR",
       "restapi": "/sensors",
       "uuid": [
         "$address.ext",
@@ -24,9 +24,6 @@
           "0x0000",
           "0x0001",
           "0x0500"
-        ],
-        "out": [
-          "0x0019"
         ]
       },
       "items": [
@@ -49,7 +46,20 @@
           "name": "attr/name"
         },
         {
-          "name": "attr/swversion"
+          "name": "attr/swversion",
+          "parse": {
+            "fn": "zcl:attr",
+            "ep": 1,
+            "cl": "0x0000",
+            "at": "0x0001",
+            "script": "tuya_swversion.js"
+          },
+          "read": {
+            "fn": "zcl:attr",
+            "ep": 1,
+            "cl": "0x0000",
+            "at": "0x0001"
+          }
         },
         {
           "name": "attr/type"
@@ -58,19 +68,20 @@
           "name": "attr/uniqueid"
         },
         {
-          "name": "config/alert"
-        },
-        {
           "name": "config/battery",
+          "awake": true,
           "parse": {
             "at": "0x0021",
             "cl": "0x0001",
             "ep": 1,
-            "eval": "Item.val = Attr.val"
-          }
+            "eval": "Item.val = Attr.val / 2",
+            "fn": "zcl:attr"
+          },
+          "default": 0
         },
         {
-          "name": "config/duration"
+          "name": "config/enrolled",
+          "public": false
         },
         {
           "name": "config/on"
@@ -79,16 +90,14 @@
           "name": "config/pending"
         },
         {
-          "name": "config/enrolled"
-        },
-        {
           "name": "config/reachable"
         },
         {
           "name": "state/lastupdated"
         },
         {
-          "name": "state/presence"
+          "name": "state/water",
+          "awake": true
         }
       ]
     }
@@ -97,16 +106,23 @@
     {
       "bind": "unicast",
       "src.ep": 1,
+      "dst.ep": 1,
       "cl": "0x0001",
       "report": [
         {
           "at": "0x0021",
           "dt": "0x20",
-          "min": 300,
-          "max": 7200,
-          "change": "0x01"
+          "min": 7200,
+          "max": 14400,
+          "change": "0x00000001"
         }
       ]
+    },
+    {
+      "bind": "unicast",
+      "src.ep": 1,
+      "dst.ep": 1,
+      "cl": "0x0500"
     }
   ]
 }

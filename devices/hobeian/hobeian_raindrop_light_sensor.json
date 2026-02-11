@@ -1,10 +1,18 @@
 {
   "schema": "devcap1.schema.json",
-  "uuid": "ae78fdd9-67e6-4f87-bc29-00e634d24de2",
-  "manufacturername": "_TZE200_u6x1zyv2",
-  "modelid": "TS0601",
-  "vendor": "Tuya",
-  "product": "Raindrop detection sensor",
+  "uuid": "d429cd2c-8a7e-42c0-80e5-50550318e56a",
+  "manufacturername": [
+    "HOBEIAN",
+    "_TZE200_jsaqgakf",
+    "_TZE200_u6x1zyv2"
+  ],
+  "modelid": [
+    "ZG-223Z",
+    "TS0601",
+    "TS0601"
+  ],
+  "vendor": "HOBEIAN",
+  "product": "Raindrop and light sensor (ZG-223Z)",
   "sleeper": true,
   "status": "Gold",
   "subdevices": [
@@ -55,10 +63,16 @@
           "name": "attr/uniqueid"
         },
         {
-          "name": "state/tampered"
-        },
-        {
-          "name": "config/checkin"
+          "name": "config/battery",
+          "awake": true,
+          "parse": {
+            "at": "0x0021",
+            "cl": "0x0001",
+            "ep": 1,
+            "eval": "Item.val = Attr.val / 2",
+            "fn": "zcl:attr"
+          },
+          "default": 0
         },
         {
           "name": "config/enrolled",
@@ -74,27 +88,42 @@
           "name": "config/reachable"
         },
         {
-          "name": "config/battery",
-          "awake": true,
-          "parse": {
-            "at": "0x0021",
-            "cl": "0x0001",
+          "name": "config/sensitivity",
+          "range": [
+            0,
+            9
+          ],
+          "refresh.interval": 86400,
+          "read": {
+            "at": "0x0013",
+            "cl": "0x0500",
+            "ep": 1
+          },
+          "write": {
+            "at": "0x0013",
+            "cl": "0x0500",
+            "dt": "0x20",
             "ep": 1,
-            "eval": "Item.val = Attr.val / 2"
-          }
+            "eval": "Item.val"
+          },
+          "parse": {
+            "at": "0x0013",
+            "cl": "0x0500",
+            "ep": 1,
+            "eval": "Item.val = Attr.val"
+          },
+          "default": 0
         },
         {
           "name": "state/lastupdated"
         },
         {
-          "name": "state/lowbattery"
-        },
-        {
-          "name": "state/water"
+          "name": "state/water",
+          "awake": true
         }
       ]
     },
-        {
+    {
       "type": "$TYPE_LIGHT_LEVEL_SENSOR",
       "restapi": "/sensors",
       "uuid": [
@@ -119,21 +148,22 @@
           "name": "attr/swversion"
         },
         {
-          "name": "config/battery",
-          "parse": {
-            "at": "0x0021",
-            "cl": "0x0001",
-            "ep": 1,
-            "eval": "Item.val = Attr.val / 2;",
-            "fn": "zcl:attr"
-          },
-          "default": 0
-        },
-        {
           "name": "attr/type"
         },
         {
           "name": "attr/uniqueid"
+        },
+        {
+          "name": "config/battery",
+          "awake": true,
+          "parse": {
+            "at": "0x0021",
+            "cl": "0x0001",
+            "ep": 1,
+            "eval": "Item.val = Attr.val / 2",
+            "fn": "zcl:attr"
+          },
+          "default": 0
         },
         {
           "name": "config/on"
@@ -142,19 +172,19 @@
           "name": "config/reachable"
         },
         {
-          "name": "state/lastupdated"
-        },
-        {
-          "name": "state/dark"
-        },
-        {
           "name": "config/tholddark"
         },
         {
           "name": "config/tholdoffset"
         },
         {
+          "name": "state/dark"
+        },
+        {
           "name": "state/daylight"
+        },
+        {
+          "name": "state/lastupdated"
         },
         {
           "name": "state/lightlevel",
@@ -182,8 +212,8 @@
         {
           "at": "0x0021",
           "dt": "0x20",
-          "min": 60,
-          "max": 3600,
+          "min": 7200,
+          "max": 14400,
           "change": "0x00000001"
         }
       ]

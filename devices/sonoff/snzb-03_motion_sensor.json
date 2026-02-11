@@ -1,15 +1,16 @@
 {
   "schema": "devcap1.schema.json",
-  "uuid": "ecd28fe6-2e26-4f0d-9f6d-3e9e956229f2",
-  "manufacturername": "SMaBiT",
-  "modelid": "AV2010/21C",
-  "vendor": "SMaBiT",
-  "product": "Flat magnetic contact sensor (AV2010/21C)",
+  "uuid": "c166e9a3-0d00-4d79-99d1-c7f6a158fa27",
+  "manufacturername": "eWeLink",
+  "modelid": "SNZB-03",
+  "vendor": "Sonoff/eWeLink",
+  "product": "Motion sensor (SNZB-03)",
+  "matchexpr": "R.item('attr/zonetype').val === 0x000d",
   "sleeper": true,
-  "status": "Silver",
+  "status": "Gold",
   "subdevices": [
     {
-      "type": "$TYPE_OPEN_CLOSE_SENSOR",
+      "type": "$TYPE_PRESENCE_SENSOR",
       "restapi": "/sensors",
       "uuid": [
         "$address.ext",
@@ -55,6 +56,25 @@
           "name": "attr/uniqueid"
         },
         {
+          "name": "config/battery",
+          "refresh.interval": 86400,
+          "awake": true,
+          "read": {
+            "at": "0x0021",
+            "cl": "0x0001",
+            "ep": 1,
+            "fn": "zcl:attr"
+          },
+          "parse": {
+            "at": "0x0021",
+            "cl": "0x0001",
+            "ep": 1,
+            "eval": "Item.val = Attr.val / 2",
+            "fn": "zcl:attr"
+          },
+          "default": 0
+        },
+        {
           "name": "config/checkin"
         },
         {
@@ -77,7 +97,12 @@
           "name": "state/lowbattery"
         },
         {
-          "name": "state/open"
+          "name": "state/presence",
+          "awake": true,
+          "parse": {
+            "fn": "ias:zonestatus",
+            "mask": "alarm1"
+          }
         }
       ]
     }
@@ -87,6 +112,20 @@
       "bind": "unicast",
       "src.ep": 1,
       "cl": "0x0500"
+    },
+    {
+      "bind": "unicast",
+      "src.ep": 1,
+      "cl": "0x0001",
+      "report": [
+        {
+          "at": "0x0021",
+          "dt": "0x20",
+          "min": 7200,
+          "max": 14400,
+          "change": "0x00000001"
+        }
+      ]
     }
   ]
 }
