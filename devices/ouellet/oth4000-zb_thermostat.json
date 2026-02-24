@@ -1,10 +1,10 @@
 {
   "schema": "devcap1.schema.json",
-  "uuid": "e4ee14c0-c6a8-431c-8bff-4b4aa32d5de3",
-  "manufacturername": "Schneider Electric",
-  "modelid": "EKO07259",
-  "vendor": "Schneider Electric",
-  "product": "Connected thermostat elko smart plus 16A (EKO07259)",
+  "uuid": "a523df0f-0b8a-4950-92b7-293f30423e29",
+  "manufacturername": "Sinope Technologies",
+  "modelid": "OTH4000-ZB",
+  "vendor": "Ouellet",
+  "product": "Smart thermostat (OTH4000-ZB)",
   "sleeper": false,
   "status": "Gold",
   "subdevices": [
@@ -22,7 +22,9 @@
         "endpoint": "0x01",
         "in": [
           "0x0000",
-          "0x0201"
+          "0x0201",
+          "0x0204",
+          "0x0B05"
         ]
       },
       "meta": {
@@ -53,21 +55,7 @@
           "name": "attr/name"
         },
         {
-          "name": "attr/swversion",
-          "refresh.interval": 86400,
-          "read": {
-            "at": "0xE001",
-            "cl": "0x0000",
-            "ep": 1,
-            "fn": "zcl:attr"
-          },
-          "parse": {
-            "at": "0xE001",
-            "cl": "0x0000",
-            "ep": 1,
-            "eval": "Item.val = Attr.val",
-            "fn": "zcl:attr"
-          }
+          "name": "attr/swversion"
         },
         {
           "name": "attr/type"
@@ -76,8 +64,66 @@
           "name": "attr/uniqueid"
         },
         {
+          "name": "config/externalsensortemp",
+          "refresh.interval": 360,
+          "read": {
+            "at": "0x0010",
+            "cl": "0xff01",
+            "ep": 1,
+            "fn": "zcl:attr",
+            "mf": "0x119c"
+          },
+          "parse": {
+            "at": "0x0010",
+            "cl": "0xff01",
+            "ep": 1,
+            "eval": "Item.val = Attr.val",
+            "fn": "zcl:attr",
+            "mf": "0x119c"
+          },
+          "write": {
+            "at": "0x0010",
+            "cl": "0xff01",
+            "dt": "0x29",
+            "ep": 1,
+            "eval": "Item.val",
+            "fn": "zcl:attr",
+            "mf": "0x119c"
+          },
+          "default": -32768
+        },
+        {
           "name": "config/heatsetpoint",
-          "refresh.interval": 360
+          "default": 0
+        },
+        {
+          "name": "config/ledindication",
+          "refresh.interval": 360,
+          "read": {
+            "at": "0x0402",
+            "cl": "0x0201",
+            "ep": 1,
+            "fn": "zcl:attr",
+            "mf": "0x119c"
+          },
+          "parse": {
+            "at": "0x0402",
+            "cl": "0x0201",
+            "ep": 1,
+            "eval": "Item.val = Attr.val",
+            "fn": "zcl:attr",
+            "mf": "0x119c"
+          },
+          "write": {
+            "at": "0x0402",
+            "cl": "0x0201",
+            "dt": "0x30",
+            "ep": 1,
+            "eval": "Item.val",
+            "fn": "zcl:attr",
+            "mf": "0x119c"
+          },
+          "default": 1
         },
         {
           "name": "config/locked",
@@ -141,15 +187,45 @@
           "name": "config/reachable"
         },
         {
+          "name": "config/schedule"
+        },
+        {
+          "name": "config/schedule_on"
+        },
+        {
           "name": "config/unoccupiedheatsetpoint",
-          "refresh.interval": 360
+          "refresh.interval": 360,
+          "read": {
+            "at": "0x0014",
+            "cl": "0x0201",
+            "ep": 1,
+            "fn": "zcl:attr"
+          },
+          "parse": {
+            "at": "0x0014",
+            "cl": "0x0201",
+            "ep": 1,
+            "eval": "Item.val = Attr.val",
+            "fn": "zcl:attr"
+          },
+          "write": {
+            "at": "0x0014",
+            "cl": "0x0201",
+            "dt": "0x29",
+            "ep": 1,
+            "eval": "Item.val",
+            "fn": "zcl:attr"
+          },
+          "default": 1800
+        },
+        {
+          "name": "state/lastupdated"
         },
         {
           "name": "state/lastupdated"
         },
         {
           "name": "state/on",
-          "refresh.interval": 3600,
           "parse": {
             "at": "0x0008",
             "cl": "0x0201",
@@ -176,18 +252,46 @@
             "ep": 1,
             "eval": "Item.val = Attr.val",
             "fn": "zcl:attr"
-          }
+          },
+          "default": 0
+        },
+        {
+          "name": "state/valve",
+          "refresh.interval": 360,
+          "read": {
+            "at": "0x0008",
+            "cl": "0x0201",
+            "ep": 1,
+            "fn": "zcl:attr"
+          },
+          "parse": {
+            "at": "0x0008",
+            "cl": "0x0201",
+            "ep": 1,
+            "eval": "Item.val = Attr.val",
+            "fn": "zcl:attr"
+          },
+          "default": 0
         }
       ]
     },
     {
-      "type": "$TYPE_TEMPERATURE_SENSOR",
+      "type": "$TYPE_POWER_SENSOR",
       "restapi": "/sensors",
       "uuid": [
         "$address.ext",
-        "0x02",
-        "0x0402"
+        "0x01",
+        "0x0b04"
       ],
+      "fingerprint": {
+        "profile": "0x0104",
+        "device": "0x0301",
+        "endpoint": "0x01",
+        "in": [
+          "0x0000",
+          "0x0B04"
+        ]
+      },
       "items": [
         {
           "name": "attr/id"
@@ -208,21 +312,7 @@
           "name": "attr/name"
         },
         {
-          "name": "attr/swversion",
-          "refresh.interval": 86400,
-          "read": {
-            "at": "0xE001",
-            "cl": "0x0000",
-            "ep": 1,
-            "fn": "zcl:attr"
-          },
-          "parse": {
-            "at": "0xE001",
-            "cl": "0x0000",
-            "ep": 1,
-            "eval": "Item.val = Attr.val",
-            "fn": "zcl:attr"
-          }
+          "name": "attr/swversion"
         },
         {
           "name": "attr/type"
@@ -231,86 +321,64 @@
           "name": "attr/uniqueid"
         },
         {
-          "name": "config/offset"
-        },
-        {
           "name": "config/on"
         },
         {
           "name": "config/reachable"
         },
         {
-          "name": "state/lastupdated"
-        },
-        {
-          "name": "state/temperature"
-        }
-      ]
-    },
-    {
-      "type": "$TYPE_TEMPERATURE_SENSOR",
-      "restapi": "/sensors",
-      "uuid": [
-        "$address.ext",
-        "0x03",
-        "0x0402"
-      ],
-      "items": [
-        {
-          "name": "attr/id"
-        },
-        {
-          "name": "attr/lastannounced"
-        },
-        {
-          "name": "attr/lastseen"
-        },
-        {
-          "name": "attr/manufacturername"
-        },
-        {
-          "name": "attr/modelid"
-        },
-        {
-          "name": "attr/name"
-        },
-        {
-          "name": "attr/swversion",
-          "refresh.interval": 86400,
+          "name": "state/current",
+          "refresh.interval": 360,
           "read": {
-            "at": "0xE001",
-            "cl": "0x0000",
+            "at": "0x0508",
+            "cl": "0x0b04",
             "ep": 1,
             "fn": "zcl:attr"
           },
           "parse": {
-            "at": "0xE001",
-            "cl": "0x0000",
+            "at": "0x0508",
+            "cl": "0x0b04",
             "ep": 1,
-            "eval": "Item.val = Attr.val",
-            "fn": "zcl:attr"
-          }
-        },
-        {
-          "name": "attr/type"
-        },
-        {
-          "name": "attr/uniqueid"
-        },
-        {
-          "name": "config/offset"
-        },
-        {
-          "name": "config/on"
-        },
-        {
-          "name": "config/reachable"
+            "eval": "if (Attr.val != 65535) { Item.val = Attr.val / 1000 }"
+          },
+          "default": 0
         },
         {
           "name": "state/lastupdated"
         },
         {
-          "name": "state/temperature"
+          "name": "state/power",
+          "refresh.interval": 360,
+          "read": {
+            "at": "0x050b",
+            "cl": "0x0b04",
+            "ep": 1,
+            "fn": "zcl:attr"
+          },
+          "parse": {
+            "at": "0x050b",
+            "cl": "0x0b04",
+            "ep": 1,
+            "eval": "if (Attr.val != -32768 && Attr.val != 32768) { Item.val = Attr.val }"
+          },
+          "default": 0
+        },
+        {
+          "name": "state/voltage",
+          "refresh.interval": 360,
+          "read": {
+            "at": "0x0505",
+            "cl": "0x0b04",
+            "ep": 1,
+            "fn": "zcl:attr"
+          },
+          "parse": {
+            "at": "0x0505",
+            "cl": "0x0b04",
+            "ep": 1,
+            "eval": "if (Attr.val != 65535) { Item.val = Attr.val / 10 }"
+          },
+          "default": 0
         }
       ]
     },
@@ -319,7 +387,7 @@
       "restapi": "/sensors",
       "uuid": [
         "$address.ext",
-        "0x05",
+        "0x01",
         "0x0702"
       ],
       "fingerprint": {
@@ -351,21 +419,7 @@
           "name": "attr/name"
         },
         {
-          "name": "attr/swversion",
-          "refresh.interval": 86400,
-          "read": {
-            "at": "0xE001",
-            "cl": "0x0000",
-            "ep": 1,
-            "fn": "zcl:attr"
-          },
-          "parse": {
-            "at": "0xE001",
-            "cl": "0x0000",
-            "ep": 1,
-            "eval": "Item.val = Attr.val",
-            "fn": "zcl:attr"
-          }
+          "name": "attr/swversion"
         },
         {
           "name": "attr/type"
@@ -381,10 +435,100 @@
         },
         {
           "name": "state/consumption",
-          "refresh.interval": 500
+          "refresh.interval": 360,
+          "read": {
+            "at": "0x0000",
+            "cl": "0x0702",
+            "ep": 1,
+            "fn": "zcl:attr"
+          },
+          "parse": {
+            "at": "0x0000",
+            "cl": "0x0702",
+            "ep": 1,
+            "eval": "Item.val = Attr.val"
+          },
+          "default": 0
         },
         {
           "name": "state/lastupdated"
+        }
+      ]
+    },
+    {
+      "type": "$TYPE_TEMPERATURE_SENSOR",
+      "restapi": "/sensors",
+      "uuid": [
+        "$address.ext",
+        "0x01",
+        "0x0402"
+      ],
+      "fingerprint": {
+        "profile": "0x0104",
+        "device": "0x0301",
+        "endpoint": "0x01",
+        "in": [
+          "0x0000",
+          "0x0402"
+        ]
+      },
+      "items": [
+        {
+          "name": "attr/id"
+        },
+        {
+          "name": "attr/lastannounced"
+        },
+        {
+          "name": "attr/lastseen"
+        },
+        {
+          "name": "attr/manufacturername"
+        },
+        {
+          "name": "attr/modelid"
+        },
+        {
+          "name": "attr/name"
+        },
+        {
+          "name": "attr/swversion"
+        },
+        {
+          "name": "attr/type"
+        },
+        {
+          "name": "attr/uniqueid"
+        },
+        {
+          "name": "config/offset"
+        },
+        {
+          "name": "config/on"
+        },
+        {
+          "name": "config/reachable"
+        },
+        {
+          "name": "state/lastupdated"
+        },
+        {
+          "name": "state/temperature",
+          "refresh.interval": 360,
+          "read": {
+            "at": "0x0000",
+            "cl": "0x0402",
+            "ep": 1,
+            "fn": "zcl:attr"
+          },
+          "parse": {
+            "at": "0x0000",
+            "cl": "0x0402",
+            "ep": 1,
+            "eval": "Item.val = Attr.val + R.item('config/offset').val",
+            "fn": "zcl:attr"
+          },
+          "default": 0
         }
       ]
     }
@@ -393,6 +537,7 @@
     {
       "bind": "unicast",
       "src.ep": 1,
+      "dst.ep": 1,
       "cl": "0x0201",
       "report": [
         {
@@ -406,7 +551,7 @@
           "at": "0x0008",
           "dt": "0x20",
           "min": 60,
-          "max": 3600,
+          "max": 300,
           "change": "0x00000001"
         },
         {
@@ -434,53 +579,56 @@
     {
       "bind": "unicast",
       "src.ep": 1,
+      "dst.ep": 1,
       "cl": "0x0204",
       "report": [
         {
           "at": "0x0001",
           "dt": "0x30",
-          "min": 1,
+          "min": 60,
           "max": 3600
         }
       ]
     },
     {
       "bind": "unicast",
-      "src.ep": 2,
-      "cl": "0x0402",
+      "src.ep": 1,
+      "dst.ep": 1,
+      "cl": "0x0B04",
       "report": [
         {
-          "at": "0x0000",
+          "at": "0x050B",
           "dt": "0x29",
-          "min": 60,
-          "max": 300,
-          "change": "0x00000032"
-        }
-      ]
-    },
-    {
-      "bind": "unicast",
-      "src.ep": 3,
-      "cl": "0x0402",
-      "report": [
-        {
-          "at": "0x0000",
-          "dt": "0x29",
-          "min": 60,
-          "max": 300,
-          "change": "0x00000032"
-        }
-      ]
-    },
-    {
-      "bind": "unicast",
-      "src.ep": 5,
-      "cl": "0x0702",
-      "report": [
-        {
-          "at": "0x0000",
-          "dt": "0x25",
           "min": 1,
+          "max": 300,
+          "change": "0x00000001"
+        },
+        {
+          "at": "0x0505",
+          "dt": "0x21",
+          "min": 1,
+          "max": 300,
+          "change": "0x0000000A"
+        },
+        {
+          "at": "0x0508",
+          "dt": "0x21",
+          "min": 1,
+          "max": 300,
+          "change": "0x00000001"
+        }
+      ]
+    },
+    {
+      "bind": "unicast",
+      "src.ep": 1,
+      "cl": "0xFF01",
+      "report": [
+        {
+          "at": "0x0010",
+          "dt": "0x29",
+          "mf": "0x119C",
+          "min": 30,
           "max": 300,
           "change": "0x0000000A"
         }
