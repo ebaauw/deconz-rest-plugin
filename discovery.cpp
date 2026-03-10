@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2020 dresden elektronik ingenieurtechnik gmbh.
+ * Copyright (c) 2016-2025 dresden elektronik ingenieurtechnik gmbh.
  * All rights reserved.
  *
  * The software in this package is published under the terms of the BSD
@@ -182,9 +182,14 @@ void DeRestPluginPrivate::internetDiscoveryTimerFired()
     const deCONZ::Node *node;
     deCONZ::ApsController *ctrl = deCONZ::ApsController::instance();
 
-    while (ctrl && ctrl->getNode(i, &node) == 0)
+    if (!ctrl)
     {
-      i++;
+        return;
+    }
+
+    while (ctrl->getNode(i, &node) == 0)
+    {
+        i++;
     }
 
     QVariantMap map;
@@ -192,6 +197,11 @@ void DeRestPluginPrivate::internetDiscoveryTimerFired()
     map["mac"] = gwBridgeId;
     map["internal_ip"] = gwConfig["ipaddress"].toString();
     map["internal_port"] = gwConfig["port"].toDouble();
+    uint16_t httpsPort = ctrl->getParameter(deCONZ::ParamHttpsPort);
+    if (httpsPort > 0)
+    {
+        map["https_port"] = (double)httpsPort;
+    }
     map["interval"] = gwAnnounceInterval;
     map["swversion"] = gwConfig["swversion"].toString();
     map["fwversion"] = gwConfig["fwversion"].toString();
@@ -356,8 +366,11 @@ void DeRestPluginPrivate::internetDiscoveryExtractVersionInfo(QNetworkReply *rep
             {
                 DBG_Printf(DBG_INFO, "\t = %s, diff %d\n", qPrintable(dt.toString()), diff);
                 // lazy adjustment of process time
-                //time_t t = dt.toSecsSinceEpoch(); // Qt 5.8
+#if QT_VERSION < QT_VERSION_CHECK(5,8,0)
                 time_t t = dt.toTime_t();
+#else
+                time_t t = dt.toSecsSinceEpoch();
+#endif
                 struct tm tbrokenDown;
                 if (localtime_r(&t, &tbrokenDown))
                 {

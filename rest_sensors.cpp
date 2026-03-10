@@ -391,7 +391,7 @@ int DeRestPluginPrivate::createSensor(const ApiRequest &req, ApiResponse &rsp)
         if      (type == QLatin1String("CLIPAlarm")) { item = sensor.addItem(DataTypeBool, RStateAlarm); item->setValue(false); }
         else if (type == QLatin1String("CLIPBattery")) { item = sensor.addItem(DataTypeUInt8, RStateBattery); item->setValue(100); }
         else if (type == QLatin1String("CLIPCarbonMonoxide")) { item = sensor.addItem(DataTypeBool, RStateCarbonMonoxide); item->setValue(false); }
-        else if (type == QLatin1String("CLIPConsumption")) { item = sensor.addItem(DataTypeReal, RStateConsumption); item->setValue(0); }
+        else if (type == QLatin1String("CLIPConsumption")) { item = sensor.addItem(DataTypeUInt64, RStateConsumption); item->setValue(0); }
         else if (type == QLatin1String("CLIPDaylightOffset")) { item = sensor.addItem(DataTypeInt16, RConfigOffset); item->setValue(0);
                                                                 item = sensor.addItem(DataTypeString, RConfigMode);
                                                                 item = sensor.addItem(DataTypeTime, RStateLocaltime); }
@@ -407,12 +407,12 @@ int DeRestPluginPrivate::createSensor(const ApiRequest &req, ApiResponse &rsp)
                                                             item = sensor.addItem(DataTypeUInt16, RConfigTholdDark); item->setValue(R_THOLDDARK_DEFAULT);
                                                             item = sensor.addItem(DataTypeUInt16, RConfigTholdOffset); item->setValue(R_THOLDOFFSET_DEFAULT); }
         else if (type == QLatin1String("CLIPOpenClose")) { item = sensor.addItem(DataTypeBool, RStateOpen); item->setValue(false); }
-        else if (type == QLatin1String("CLIPPower")) { item = sensor.addItem(DataTypeReal, RStatePower); item->setValue(0);
-                                                       item = sensor.addItem(DataTypeReal, RStateVoltage); item->setValue(0);
-                                                       item = sensor.addItem(DataTypeReal, RStateCurrent); item->setValue(0); }
+        else if (type == QLatin1String("CLIPPower")) { item = sensor.addItem(DataTypeInt16, RStatePower); item->setValue(0);
+                                                       item = sensor.addItem(DataTypeUInt16, RStateVoltage); item->setValue(0);
+                                                       item = sensor.addItem(DataTypeUInt16, RStateCurrent); item->setValue(0); }
         else if (type == QLatin1String("CLIPPresence")) { item = sensor.addItem(DataTypeBool, RStatePresence); item->setValue(false);
                                                           item = sensor.addItem(DataTypeUInt16, RConfigDuration); item->setValue(60); }
-        else if (type == QLatin1String("CLIPPressure")) { item = sensor.addItem(DataTypeReal, RStatePressure); item->setValue(0); }
+        else if (type == QLatin1String("CLIPPressure")) { item = sensor.addItem(DataTypeInt16, RStatePressure); item->setValue(0); }
         else if (type == QLatin1String("CLIPSwitch")) { item = sensor.addItem(DataTypeInt32, RStateButtonEvent); item->setValue(0); }
         else if (type == QLatin1String("CLIPTemperature")) { item = sensor.addItem(DataTypeInt16, RStateTemperature); item->setValue(0);
                                                              item = sensor.addItem(DataTypeInt16, RConfigOffset); item->setValue(0); }
@@ -810,23 +810,17 @@ int DeRestPluginPrivate::changeSensorConfig(const ApiRequest &req, ApiResponse &
                         }
                     }
                 }
-
-                if (sensor->modelId().startsWith(QLatin1String("SPZB")) && hostFlags == 0) // Eurotronic Spirit
+				
+                if (rid.suffix == RConfigHostFlags) // Eurotronic Spirit
                 {
-                    ResourceItem *item = sensor->item(RConfigHostFlags);
-                    if (item)
+                    if (devManaged && rsub)
                     {
-                        hostFlags = item->toNumber();
-                    }
-                    else
-                    {
-                        rsp.list.append(errorToMap(ERR_ACTION_ERROR, QString("/sensors/%1/config/%2").arg(id).arg(pi.key()),
-                                                   QLatin1String("Could not set attribute")));
-                        continue;
+                        change.addTargetValue(rid.suffix, data.uinteger);
+                        rsub->addStateChange(change);
+                        updated = true;
                     }
                 }
-
-                if (rid.suffix == RConfigDeviceMode) // String
+                else if (rid.suffix == RConfigDeviceMode) // String
                 {
                     if (devManaged && rsub)
                     {
@@ -901,6 +895,24 @@ int DeRestPluginPrivate::changeSensorConfig(const ApiRequest &req, ApiResponse &
                     if (devManaged && rsub)
                     {
                         change.addTargetValue(rid.suffix, data.string);
+                        rsub->addStateChange(change);
+                        updated = true;
+                    }
+                }
+                else if (rid.suffix == RConfigRestartDevice) // Boolean
+                {
+                    if (devManaged && rsub)
+                    {
+                        change.addTargetValue(rid.suffix, data.boolean);
+                        rsub->addStateChange(change);
+                        updated = true;
+                    }
+                }
+                else if (rid.suffix == RConfigSpatialLearning) // Boolean
+                {
+                    if (devManaged && rsub)
+                    {
+                        change.addTargetValue(rid.suffix, data.boolean);
                         rsub->addStateChange(change);
                         updated = true;
                     }
@@ -1423,7 +1435,7 @@ int DeRestPluginPrivate::changeSensorConfig(const ApiRequest &req, ApiResponse &
                             }
                         }
                     }
-                    else if (sensor->modelId().startsWith(QLatin1String("SPZB"))) // Eurotronic Spirit
+/*                     else if (sensor->modelId().startsWith(QLatin1String("SPZB"))) // Eurotronic Spirit
                     {
                         const auto match = matchKeyValue(data.string, RConfigModeValuesEurotronic);
 
@@ -1449,7 +1461,7 @@ int DeRestPluginPrivate::changeSensorConfig(const ApiRequest &req, ApiResponse &
                                 updated = true;
                             }
                         }
-                    }
+                    } */
                     else
                     {
                         const auto match = matchKeyValue(data.string, RConfigModeValues);
@@ -1667,16 +1679,6 @@ int DeRestPluginPrivate::changeSensorConfig(const ApiRequest &req, ApiResponse &
                             updated = true;
                         }
                     }
-                    else if (sensor->modelId().startsWith(QLatin1String("SPZB"))) // Eurotronic Spirit
-                    {
-                        if (data.boolean) { hostFlags |= 0x000080; } // set locked
-                        else              { hostFlags &= 0xffff6f; } // clear locked, clear disable off
-
-                        if (addTaskThermostatReadWriteAttribute(task, deCONZ::ZclWriteAttributesId, VENDOR_JENNIC, THERM_ATTRID_HOST_FLAGS, deCONZ::Zcl24BitUint, hostFlags))
-                        {
-                            updated = true;
-                        }
-                    }
                     else if (devManaged && rsub) // Managed by DDF ? why integer ?
                     {
                         data.uinteger = data.boolean; // Use integer representation
@@ -1696,17 +1698,7 @@ int DeRestPluginPrivate::changeSensorConfig(const ApiRequest &req, ApiResponse &
                 }
                 else if (rid.suffix == RConfigDisplayFlipped) // Boolean
                 {
-                    if (sensor->modelId().startsWith(QLatin1String("SPZB"))) // Eurotronic Spirit
-                    {
-                        if (data.boolean) { hostFlags |= 0x000002; } // set flipped
-                        else              { hostFlags &= 0xffffed; } // clear flipped, clear disable off
-
-                        if (addTaskThermostatReadWriteAttribute(task, deCONZ::ZclWriteAttributesId, VENDOR_JENNIC, THERM_ATTRID_HOST_FLAGS, deCONZ::Zcl24BitUint, hostFlags))
-                        {
-                            updated = true;
-                        }
-                    }
-                    else if (devManaged && rsub)
+                    if (devManaged && rsub)
                     {
                         data.uinteger = data.boolean; // Use integer representation
                         change.addTargetValue(rid.suffix, data.uinteger);
