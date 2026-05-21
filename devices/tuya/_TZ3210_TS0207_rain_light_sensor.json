@@ -1,15 +1,21 @@
 {
   "schema": "devcap1.schema.json",
-  "uuid": "583960f0-9783-463e-81d8-744f6573fdc8",
-  "manufacturername": "HOBEIAN",
-  "modelid": "ZG-204ZL",
-  "vendor": "HOBEIAN",
-  "product": "Presence and light sensor (ZG-204ZL)",
+  "uuid": "61290cba-69dd-4694-8d01-8cd154219a41",
+  "manufacturername": [
+    "_TZ3210_tgvtvdoc",
+    "_TZ3210_p68kms0l"
+  ],
+  "modelid": [
+    "TS0207",
+    "TS0207"
+  ],
+  "vendor": "Tuya",
+  "product": "Solar rain and light sensor (RB-SRAIN01)",
   "sleeper": true,
   "status": "Gold",
   "subdevices": [
     {
-      "type": "$TYPE_PRESENCE_SENSOR",
+      "type": "$TYPE_WATER_LEAK_SENSOR",
       "restapi": "/sensors",
       "uuid": [
         "$address.ext",
@@ -46,7 +52,20 @@
           "name": "attr/name"
         },
         {
-          "name": "attr/swversion"
+          "name": "attr/swversion",
+          "parse": {
+            "fn": "zcl:attr",
+            "ep": 1,
+            "cl": "0x0000",
+            "at": "0x0001",
+            "script": "tuya_swversion.js"
+          },
+          "read": {
+            "fn": "zcl:attr",
+            "ep": 1,
+            "cl": "0x0000",
+            "at": "0x0001"
+          }
         },
         {
           "name": "attr/type"
@@ -56,7 +75,8 @@
         },
         {
           "name": "config/battery",
-          "refresh.interval": 86400,
+          "refresh.interval": 43260,
+          "awake": true,
           "read": {
             "at": "0x0021",
             "cl": "0x0001",
@@ -85,37 +105,23 @@
           "name": "config/reachable"
         },
         {
-          "name": "config/sensitivity",
-          "range": [
-            0,
-            2
-          ],
-          "refresh.interval": 86400,
-          "read": {
-            "at": "0x0013",
-            "cl": "0x0500",
-            "ep": 1
-          },
-          "write": {
-            "at": "0x0013",
-            "cl": "0x0500",
-            "dt": "0x20",
-            "ep": 1,
-            "eval": "Item.val"
-          },
+          "name": "state/lastupdated"
+        },
+        {
+          "name": "state/voltage",
+          "description": "The rainfall intensity is measured in mV",
           "parse": {
-            "at": "0x0013",
-            "cl": "0x0500",
-            "ep": 1,
+            "fn": "tuya",
+            "dpid": 105,
             "eval": "Item.val = Attr.val"
+          },
+          "read": {
+            "fn": "none"
           },
           "default": 0
         },
         {
-          "name": "state/lastupdated"
-        },
-        {
-          "name": "state/presence",
+          "name": "state/water",
           "awake": true,
           "parse": {
             "fn": "ias:zonestatus",
@@ -129,7 +135,7 @@
       "restapi": "/sensors",
       "uuid": [
         "$address.ext",
-        "0x03",
+        "0x01",
         "0x0400"
       ],
       "items": [
@@ -152,7 +158,20 @@
           "name": "attr/name"
         },
         {
-          "name": "attr/swversion"
+          "name": "attr/swversion",
+          "parse": {
+            "fn": "zcl:attr",
+            "ep": 1,
+            "cl": "0x0000",
+            "at": "0x0001",
+            "script": "tuya_swversion.js"
+          },
+          "read": {
+            "fn": "zcl:attr",
+            "ep": 1,
+            "cl": "0x0000",
+            "at": "0x0001"
+          }
         },
         {
           "name": "attr/type"
@@ -162,7 +181,8 @@
         },
         {
           "name": "config/battery",
-          "refresh.interval": 86400,
+          "refresh.interval": 43260,
+          "awake": true,
           "read": {
             "at": "0x0021",
             "cl": "0x0001",
@@ -184,32 +204,36 @@
           "name": "config/reachable"
         },
         {
+          "name": "state/lastupdated"
+        },
+        {
+          "name": "state/dark"
+        },
+        {
           "name": "config/tholddark"
         },
         {
           "name": "config/tholdoffset"
         },
         {
-          "name": "state/dark"
-        },
-        {
           "name": "state/daylight"
         },
         {
-          "name": "state/lastupdated"
+          "name": "state/lightlevel"
         },
         {
-          "name": "state/lightlevel",
+          "name": "state/lux",
+          "description": "The current light intensity in Lux (max is 2000)",
           "awake": true,
+          "read": {
+            "fn": "none"
+          },
           "parse": {
-            "at": "0x0000",
-            "cl": "0x0400",
-            "ep": 1,
-            "script": "../generic/illuminance_cluster/sml_light_level.js"
-          }
-        },
-        {
-          "name": "state/lux"
+            "fn": "tuya",
+            "dpid": 101,
+            "script": "../generic/illuminance_cluster/lux_to_lightlevel.js"
+          },
+          "default": 0
         }
       ]
     }
@@ -218,18 +242,14 @@
     {
       "bind": "unicast",
       "src.ep": 1,
-      "cl": "0x0500"
-    },
-    {
-      "bind": "unicast",
-      "src.ep": 1,
+      "dst.ep": 1,
       "cl": "0x0001",
       "report": [
         {
           "at": "0x0021",
           "dt": "0x20",
-          "min": 3600,
-          "max": 14400,
+          "min": 7200,
+          "max": 43200,
           "change": "0x00000001"
         }
       ]
@@ -237,16 +257,8 @@
     {
       "bind": "unicast",
       "src.ep": 1,
-      "cl": "0x0400",
-      "report": [
-        {
-          "at": "0x0000",
-          "dt": "0x21",
-          "min": 60,
-          "max": 600,
-          "change": "0x0000FFFF"
-        }
-      ]
+      "dst.ep": 1,
+      "cl": "0x0500"
     }
   ]
 }
